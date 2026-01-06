@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Controle por Gestos - ESP8266</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+  <style>
+    body {
+      background: #111;
+      color: #fff;
+      font-family: Arial;
+      text-align: center;
+    }
+    video {
+      width: 90%;
+      max-width: 400px;
+      border-radius: 10px;
+      border: 2px solid #00c853;
+    }
+  </style>
+</head>
+
+<body>
+
+<h2>✋ Controle por Gestos</h2>
+<p>Mão aberta = liga | Mão fechada = desliga</p>
+
+<video id="video" autoplay playsinline></video>
+
+<script>
+const video = document.getElementById('video');
+
+// 🔴 COLOQUE AQUI O IP DO SEU ESP
+const ESP_IP = "http://192.168.15.11";
+
+let estadoAtual = "";
+
+const hands = new Hands({
+  locateFile: file =>
+    `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+});
+
+hands.setOptions({
+  maxNumHands: 1,
+  minDetectionConfidence: 0.7,
+  minTrackingConfidence: 0.7
+});
+
+hands.onResults(results => {
+  if (!results.multiHandLandmarks) return;
+
+  const pontos = results.multiHandLandmarks[0];
+
+  const dedosAbertos =
+    pontos[8].y < pontos[6].y &&   // Indicador
+    pontos[12].y < pontos[10].y && // Médio
+    pontos[16].y < pontos[14].y && // Anelar
+    pontos[20].y < pontos[18].y;   // Mindinho
+
+  if (dedosAbertos && estadoAtual !== "ligado") {
+    estadoAtual = "ligado";
+    fetch(`${ESP_IP}/ligar`);
+    console.log("LED LIGADO");
+  }
+
+  if (!dedosAbertos && estadoAtual !== "desligado") {
+    estadoAtual = "desligado";
+    fetch(`${ESP_IP}/desligar`);
+    console.log("LED DESLIGADO");
+  }
+});
+
+const camera = new Camera(video, {
+  onFrame: async () => {
+    await hands.send({ image: video });
+  },
+  width: 640,
+  height: 480
+});
+
+camera.start();
+</script>
+
+</body>
+</html>
