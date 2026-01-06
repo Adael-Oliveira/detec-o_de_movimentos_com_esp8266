@@ -20,6 +20,16 @@
       max-width: 400px;
       border-radius: 10px;
       border: 2px solid #00c853;
+      margin-bottom: 10px;
+    }
+    #status {
+      font-size: 22px;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    #dedos {
+      font-size: 16px;
+      opacity: 0.8;
     }
   </style>
 </head>
@@ -31,10 +41,15 @@
 
 <video id="video" autoplay playsinline></video>
 
+<div id="status">🔍 Aguardando mão...</div>
+<div id="dedos"></div>
+
 <script>
 const video = document.getElementById('video');
+const statusEl = document.getElementById('status');
+const dedosEl = document.getElementById('dedos');
 
-// 🔴 COLOQUE AQUI O IP DO SEU ESP
+// 🔴 IP DO ESP8266
 const ESP_IP = "http://192.168.15.11";
 
 let estadoAtual = "";
@@ -46,31 +61,43 @@ const hands = new Hands({
 
 hands.setOptions({
   maxNumHands: 1,
-  minDetectionConfidence: 0.7,
-  minTrackingConfidence: 0.7
+  modelComplexity: 1,
+  minDetectionConfidence: 0.6,
+  minTrackingConfidence: 0.6
 });
 
 hands.onResults(results => {
-  if (!results.multiHandLandmarks) return;
-
-  const pontos = results.multiHandLandmarks[0];
-
-  const dedosAbertos =
-    pontos[8].y < pontos[6].y &&   // Indicador
-    pontos[12].y < pontos[10].y && // Médio
-    pontos[16].y < pontos[14].y && // Anelar
-    pontos[20].y < pontos[18].y;   // Mindinho
-
-  if (dedosAbertos && estadoAtual !== "ligado") {
-    estadoAtual = "ligado";
-    fetch(`${ESP_IP}/ligar`);
-    console.log("LED LIGADO");
+  if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+    statusEl.innerText = "🔍 Nenhuma mão detectada";
+    dedosEl.innerText = "";
+    return;
   }
 
-  if (!dedosAbertos && estadoAtual !== "desligado") {
+  const p = results.multiHandLandmarks[0];
+
+  // Dedos (true = aberto)
+  const indicador = p[8].y < p[6].y;
+  const medio      = p[12].y < p[10].y;
+  const anelar     = p[16].y < p[14].y;
+  const mindinho   = p[20].y < p[18].y;
+
+  const dedosAbertos = [indicador, medio, anelar, mindinho];
+  const qtdAbertos = dedosAbertos.filter(d => d).length;
+
+  dedosEl.innerText = `Dedos abertos: ${qtdAbertos}`;
+
+  // 👉 MÃO ABERTA (4 dedos)
+  if (qtdAbertos >= 4 && estadoAtual !== "ligado") {
+    estadoAtual = "ligado";
+    statusEl.innerText = "✋ MÃO ABERTA — LED LIGADO";
+    fetch(`${ESP_IP}/ligar`).catch(()=>{});
+  }
+
+  // 👉 MÃO FECHADA (0 ou 1 dedo)
+  if (qtdAbertos <= 1 && estadoAtual !== "desligado") {
     estadoAtual = "desligado";
-    fetch(`${ESP_IP}/desligar`);
-    console.log("LED DESLIGADO");
+    statusEl.innerText = "✊ MÃO FECHADA — LED DESLIGADO";
+    fetch(`${ESP_IP}/desligar`).catch(()=>{});
   }
 });
 
