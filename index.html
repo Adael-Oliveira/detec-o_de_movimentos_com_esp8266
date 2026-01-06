@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8">
-  <title>Controle por Gestos - ESP8266</title>
+  <title>Controle de Acesso</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
@@ -20,14 +20,13 @@
       max-width: 400px;
       border-radius: 10px;
       border: 2px solid #00c853;
-      margin-bottom: 10px;
     }
     #status {
       font-size: 22px;
       margin-top: 10px;
       font-weight: bold;
     }
-    #dedos {
+    #info {
       font-size: 16px;
       opacity: 0.8;
     }
@@ -36,21 +35,21 @@
 
 <body>
 
-<h2>✋ Controle por Gestos</h2>
-<p>Mão aberta = liga | Mão fechada = desliga</p>
+<h2>✋ Controle de Acesso</h2>
+<p>Mão aberta = libera | Mão fechada = bloqueia</p>
 
 <video id="video" autoplay playsinline></video>
 
-<div id="status">🔍 Aguardando mão...</div>
-<div id="dedos"></div>
+<div id="status">🔍 Aguardando...</div>
+<div id="info"></div>
 
 <script>
 const video = document.getElementById('video');
 const statusEl = document.getElementById('status');
-const dedosEl = document.getElementById('dedos');
+const infoEl = document.getElementById('info');
 
-// 🔴 IP DO ESP8266
-const ESP_IP = "http://192.168.15.4";
+// 🔥 NOME FIXO DO DISPOSITIVO (NUNCA MUDA)
+const ESP_URL = "http://controle-acesso.local";
 
 let estadoAtual = "";
 
@@ -69,35 +68,32 @@ hands.setOptions({
 hands.onResults(results => {
   if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
     statusEl.innerText = "🔍 Nenhuma mão detectada";
-    dedosEl.innerText = "";
+    infoEl.innerText = "";
     return;
   }
 
   const p = results.multiHandLandmarks[0];
 
-  // Dedos (true = aberto)
-  const indicador = p[8].y < p[6].y;
-  const medio      = p[12].y < p[10].y;
-  const anelar     = p[16].y < p[14].y;
-  const mindinho   = p[20].y < p[18].y;
+  const dedos = [
+    p[8].y  < p[6].y,   // indicador
+    p[12].y < p[10].y,  // médio
+    p[16].y < p[14].y,  // anelar
+    p[20].y < p[18].y   // mindinho
+  ];
 
-  const dedosAbertos = [indicador, medio, anelar, mindinho];
-  const qtdAbertos = dedosAbertos.filter(d => d).length;
+  const abertos = dedos.filter(d => d).length;
+  infoEl.innerText = `Dedos abertos: ${abertos}`;
 
-  dedosEl.innerText = `Dedos abertos: ${qtdAbertos}`;
-
-  // 👉 MÃO ABERTA (4 dedos)
-  if (qtdAbertos >= 4 && estadoAtual !== "ligado") {
-    estadoAtual = "ligado";
-    statusEl.innerText = "✋ MÃO ABERTA — LED LIGADO";
-    fetch(`${ESP_IP}/ligar`).catch(()=>{});
+  if (abertos >= 4 && estadoAtual !== "liberado") {
+    estadoAtual = "liberado";
+    statusEl.innerText = "✋ ACESSO LIBERADO";
+    fetch(`${ESP_URL}/liberar`).catch(()=>{});
   }
 
-  // 👉 MÃO FECHADA (0 ou 1 dedo)
-  if (qtdAbertos <= 1 && estadoAtual !== "desligado") {
-    estadoAtual = "desligado";
-    statusEl.innerText = "✊ MÃO FECHADA — LED DESLIGADO";
-    fetch(`${ESP_IP}/desligar`).catch(()=>{});
+  if (abertos <= 1 && estadoAtual !== "bloqueado") {
+    estadoAtual = "bloqueado";
+    statusEl.innerText = "✊ ACESSO BLOQUEADO";
+    fetch(`${ESP_URL}/bloquear`).catch(()=>{});
   }
 });
 
