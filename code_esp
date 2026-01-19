@@ -1,0 +1,77 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <ESP8266mDNS.h>
+#include <WiFiManager.h>
+
+#define PIN_RELE D5   // ajuste se necessário
+
+ESP8266WebServer server(80);
+
+void headersCORS() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  server.sendHeader("Access-Control-Allow-Headers", "*");
+}
+
+void handleLiberar() {
+  headersCORS();
+
+  digitalWrite(PIN_RELE, LOW);        // Relé LIGADO
+  digitalWrite(LED_BUILTIN, LOW);    // LED nativo LIGADO
+
+  server.send(200, "text/plain", "LIBERADO");
+  Serial.println("Acesso LIBERADO");
+}
+
+void handleBloquear() {
+  headersCORS();
+
+  digitalWrite(PIN_RELE, HIGH);       // Relé DESLIGADO
+  digitalWrite(LED_BUILTIN, HIGH);    // LED nativo DESLIGADO
+
+  server.send(200, "text/plain", "BLOQUEADO");
+  Serial.println("Acesso BLOQUEADO");
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(PIN_RELE, OUTPUT);
+  pinMode(LED_BUILTIN, OUTPUT);
+
+  digitalWrite(PIN_RELE, HIGH);        // começa desligado
+  digitalWrite(LED_BUILTIN, HIGH);     // LED apagado
+
+  WiFiManager wm;
+
+  // 🔥 Sempre abre portal (não salva Wi-Fi)
+  wm.setBreakAfterConfig(true);
+  wm.setConfigPortalTimeout(180);
+
+  if (!wm.startConfigPortal("demo_gestos_iot")) {
+    Serial.println("Falha no portal WiFi");
+    ESP.restart();
+  }
+
+  Serial.println("WiFi conectado");
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
+
+  // 🌐 mDNS → controle-acesso.local
+  if (MDNS.begin("controle-acesso")) {
+    Serial.println("mDNS ativo: controle-acesso.local");
+  } else {
+    Serial.println("Erro ao iniciar mDNS");
+  }
+
+  server.on("/liberar", HTTP_GET, handleLiberar);
+  server.on("/bloquear", HTTP_GET, handleBloquear);
+
+  server.begin();
+  Serial.println("Servidor HTTP iniciado");
+}
+
+void loop() {
+  server.handleClient();
+  MDNS.update();
+}
